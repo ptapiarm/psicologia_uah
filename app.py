@@ -533,12 +533,4 @@ else:
                 "text/csv", key=f"dl_{nombre_foco}",
             )
 
-    st.markdown("---")
-    st.markdown("#### 🧭 Recomendación")
-    st.markdown(
-        "Con matrícula real (no solo vacantes ofrecidas), el patrón se confirma: "
-        f"el mercado de Psicología pasó de {int(mercado_psico[mercado_psico['Año']==2020]['Matrícula'].iloc[0]) if 2020 in mercado_psico['Año'].values else 0} "
-        f"estudiantes matriculados en 2020 a {int(mercado_2025)} en 2025, y **Salud Mental** es el "
-        "sub-nicho más grande y sostenido que la UAH prácticamente no cubre — a pesar de calzar "
-        "naturalmente con su identidad institucional en derechos humanos y compromiso social."
-    )
+
