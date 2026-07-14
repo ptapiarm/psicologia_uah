@@ -534,7 +534,8 @@ else:
     fig = px.bar(
         resumen_focos_df.sort_values("Matrícula 2025"),
         x="Matrícula 2025", y="Foco", orientation="h",
-        color="Instituciones 2025", color_continuous_scale="Reds",
+        color="Instituciones 2025",
+        color_continuous_scale=[[0, "#FDE6DC"], [1, NARANJA]],
         text="Etiqueta",
         title="Los 5 focos, ordenados por matrícula de mercado 2025 (resto del mercado, sin UAH)",
     )
