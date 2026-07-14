@@ -342,62 +342,72 @@ patron_psico = st.text_input(
     key="psico_patron_matricula",
 )
 
+# ---------------------------------------------------------------------------
+# Catálogo REAL de la UAH (2025), curado manualmente — el archivo SIES
+# demostró estar incompleto/desactualizado específicamente para la UAH.
+# ---------------------------------------------------------------------------
+UAH_PSICO_REAL_2025 = pd.DataFrame([
+    {"Programa": "Diplomado en Intervenciones en Psicología Perinatal en Chile y Latinoamérica", "Matrícula 2025": 15},
+    {"Programa": "Diplomado Pasantía en Práctica Clínica Supervisada en Psicología", "Matrícula 2025": 2},
+    {"Programa": "Postítulo en Neuropsicología Clínica", "Matrícula 2025": 17},
+    {"Programa": "Postítulo en Psicoterapia Sistémica Relacional: Fundamentos y Estrategias para una Clínica del Cambio", "Matrícula 2025": 14},
+])
+UAH_MATRICULA_PSICO_2025_REAL = int(UAH_PSICO_REAL_2025["Matrícula 2025"].sum())
+
+st.info(
+    "ℹ️ El archivo SIES resultó tener datos incompletos/desactualizados para la "
+    "UAH en 2025 (varios programas reales no aparecían, y uno tenía cifra distinta "
+    "a la real). Por eso, **el catálogo y la matrícula de la UAH que se usan de "
+    "aquí en adelante son los datos reales que confirmaste**, no los del archivo "
+    "SIES. El resto del mercado (otras universidades) sigue viniendo de SIES, "
+    "que es la única fuente disponible para ellas."
+)
+
 psico_hist = df[df["NOMBRE CARRERA"].str.contains(patron_psico, case=False, na=False, regex=True)].copy()
 psico_hist = psico_hist[psico_hist["Año"] <= 2025]
 
 if psico_hist.empty:
     st.warning("No se encontraron programas con ese patrón de búsqueda.")
 else:
-    uah_psico_hist = psico_hist[psico_hist["NOMBRE INSTITUCIÓN"] == UAH_NOMBRE]
+    # Mercado SIN la UAH (para no mezclar los datos poco confiables de SIES con los reales)
+    mercado_sin_uah = psico_hist[psico_hist["NOMBRE INSTITUCIÓN"] != UAH_NOMBRE]
 
     st.markdown("---")
-    st.subheader("📋 Catálogo real de la UAH en Psicología (hasta 2025)")
-    if uah_psico_hist.empty:
-        st.info("No se detectaron programas de la UAH con este patrón.")
-    else:
-        catalogo_uah = uah_psico_hist.groupby("NOMBRE CARRERA").agg(
-            Primer_año=("Año", "min"),
-            Último_año=("Año", "max"),
-            Matrícula_total_histórica=("TOTAL MATRÍCULA", "sum"),
-            Matrícula_último_año=("TOTAL MATRÍCULA", "last"),
-        ).reset_index().rename(columns={
-            "NOMBRE CARRERA": "Programa", "Primer_año": "Primer año",
-            "Último_año": "Último año", "Matrícula_total_histórica": "Matrícula histórica total",
-            "Matrícula_último_año": "Matrícula último año ofrecido",
-        }).sort_values("Último año", ascending=False)
-        st.dataframe(catalogo_uah, use_container_width=True, hide_index=True)
+    st.subheader("📋 Catálogo real de la UAH en Psicología (2025, confirmado)")
+    st.dataframe(UAH_PSICO_REAL_2025, use_container_width=True, hide_index=True)
+    st.caption(f"**Matrícula total real UAH en Psicología, 2025: {UAH_MATRICULA_PSICO_2025_REAL} estudiantes.**")
 
     st.markdown("---")
     st.subheader("📈 Evolución del mercado completo de Psicología (matrícula real)")
-    mercado_psico = psico_hist.groupby("Año").agg(
+    mercado_psico = mercado_sin_uah.groupby("Año").agg(
         Programas=("CÓDIGO CARRERA", "nunique"),
         Instituciones=("NOMBRE INSTITUCIÓN", "nunique"),
         Matrícula=("TOTAL MATRÍCULA", "sum"),
     ).reset_index()
     mercado_psico_2020 = mercado_psico[mercado_psico["Año"] >= 2020].copy()
     mercado_psico_2020["Año"] = mercado_psico_2020["Año"].astype(str)
+    st.caption("Excluye a la UAH (que usa el catálogo real de arriba, no los datos de SIES).")
 
     colm1, colm2, colm3 = st.columns(3)
     with colm1:
-        fig = px.line(mercado_psico_2020, x="Año", y="Programas", markers=True, title="N° de programas")
+        fig = px.line(mercado_psico_2020, x="Año", y="Programas", markers=True, title="N° de programas (resto del mercado)")
         fig.update_xaxes(type="category")
         st.plotly_chart(fig, use_container_width=True)
     with colm2:
-        fig = px.line(mercado_psico_2020, x="Año", y="Instituciones", markers=True, title="N° de instituciones",
+        fig = px.line(mercado_psico_2020, x="Año", y="Instituciones", markers=True, title="N° de instituciones (resto del mercado)",
                       color_discrete_sequence=["#27AE60"])
         fig.update_xaxes(type="category")
         st.plotly_chart(fig, use_container_width=True)
     with colm3:
-        fig = px.bar(mercado_psico_2020, x="Año", y="Matrícula", title="Matrícula total",
+        fig = px.bar(mercado_psico_2020, x="Año", y="Matrícula", title="Matrícula total (resto del mercado)",
                     color_discrete_sequence=[NARANJA])
         fig.update_xaxes(type="category")
         st.plotly_chart(fig, use_container_width=True)
 
-    uah_2025 = uah_psico_hist[uah_psico_hist["Año"] == 2025]["TOTAL MATRÍCULA"].sum()
     mercado_2025 = mercado_psico[mercado_psico["Año"] == 2025]["Matrícula"].iloc[0] if 2025 in mercado_psico["Año"].values else 0
     c1, c2 = st.columns(2)
-    c1.metric("Matrícula UAH en Psicología (2025)", int(uah_2025))
-    c2.metric("Matrícula total del mercado (2025)", int(mercado_2025))
+    c1.metric("Matrícula UAH en Psicología (2025, real)", UAH_MATRICULA_PSICO_2025_REAL)
+    c2.metric("Matrícula resto del mercado (2025, SIES)", int(mercado_2025))
 
     st.markdown("---")
     st.subheader("🔍 Brechas temáticas: palabras clave validadas por el mercado que la UAH no cubre")
@@ -429,7 +439,7 @@ else:
         columns=["Tema", "N° instituciones"],
     ).sort_values("N° instituciones", ascending=False)
 
-    uah_texto_psico = " ".join(uah_psico_hist["NOMBRE CARRERA"].apply(normalizar_texto))
+    uah_texto_psico = " ".join(UAH_PSICO_REAL_2025["Programa"].apply(normalizar_texto))
     tema_df["¿UAH lo cubre?"] = tema_df["Tema"].apply(lambda t: "Sí" if t in uah_texto_psico else "No")
     tema_df = tema_df[tema_df["N° instituciones"] >= min_inst_psico]
 
@@ -458,11 +468,27 @@ else:
         "🏃 Psicología del Deporte": "PSICOLOGIA DEL DEPORTE|PSICOLOGIA APLICADA A LA ACTIVIDAD FISICA",
     }
 
+    # Cobertura real de la UAH por foco, confirmada manualmente contra el catálogo
+    # y las descripciones oficiales de postgrados.uahurtado.cl (no vía SIES, que
+    # no tiene estos programas de la UAH registrados).
+    FOCOS_UAH_COBERTURA = {
+        "🧠 Salud Mental": (
+            "Parcial. La UAH tiene 'Diplomado en Intervenciones en Psicología "
+            "Perinatal', cuya bajada oficial es 'Salud Mental Perinatal' — pero "
+            "no cubre los sub-nichos de mayor volumen (infanto-juvenil, laboral, "
+            "DDHH, personas mayores)."
+        ),
+        "⚖️ Psicología Jurídica / Forense": "No cubierto — sin programas relacionados en el catálogo real de la UAH.",
+        "🧩 Psicoterapia Cognitivo-Constructivista": "No cubierto — sin programas relacionados en el catálogo real de la UAH.",
+        "👶 Evaluación e Intervención Infanto-Juvenil": "No cubierto — sin programas relacionados en el catálogo real de la UAH.",
+        "🏃 Psicología del Deporte": "No cubierto — sin programas relacionados en el catálogo real de la UAH.",
+    }
+
     resumen_focos = []
     for nombre_foco, patron_foco in FOCOS.items():
-        d_foco = df[
-            (df["NOMBRE CARRERA"].str.contains(patron_foco, case=False, na=False, regex=True))
-            & (df["Año"] <= 2025)
+        d_foco = mercado_sin_uah[
+            (mercado_sin_uah["NOMBRE CARRERA"].str.contains(patron_foco, case=False, na=False, regex=True))
+            & (mercado_sin_uah["Año"] <= 2025)
         ]
         d_foco_2025 = d_foco[d_foco["Año"] == 2025]
         resumen_focos.append({
@@ -476,7 +502,7 @@ else:
         resumen_focos_df.sort_values("Matrícula 2025"),
         x="Matrícula 2025", y="Foco", orientation="h",
         color="Instituciones 2025", color_continuous_scale="Reds",
-        title="Los 5 focos, ordenados por matrícula de mercado 2025",
+        title="Los 5 focos, ordenados por matrícula de mercado 2025 (resto del mercado, sin UAH)",
     )
     fig.update_coloraxes(colorbar_tickformat=",d")
     st.plotly_chart(fig, use_container_width=True)
@@ -484,9 +510,9 @@ else:
     for nombre_foco in resumen_focos_df["Foco"]:
         patron_foco = FOCOS[nombre_foco]
         with st.expander(f"{nombre_foco} — ver detalle"):
-            f_hist = df[
-                (df["NOMBRE CARRERA"].str.contains(patron_foco, case=False, na=False, regex=True))
-                & (df["Año"] <= 2025)
+            f_hist = mercado_sin_uah[
+                (mercado_sin_uah["NOMBRE CARRERA"].str.contains(patron_foco, case=False, na=False, regex=True))
+                & (mercado_sin_uah["Año"] <= 2025)
             ]
             f_year = f_hist.groupby("Año").agg(
                 Programas=("CÓDIGO CARRERA", "nunique"),
@@ -500,28 +526,27 @@ else:
             with colf1:
                 fig = px.line(
                     f_year_2020, x="Año", y=["Programas", "Instituciones"], markers=True,
-                    title=f"{nombre_foco}: N° de programas e instituciones",
+                    title=f"{nombre_foco}: N° de programas e instituciones (resto del mercado)",
                     labels={"value": "", "variable": ""},
                 )
                 fig.update_xaxes(type="category")
                 st.plotly_chart(fig, use_container_width=True)
             with colf2:
                 fig = px.bar(
-                    f_year_2020, x="Año", y="Matrícula", title=f"{nombre_foco}: matrícula total por año",
+                    f_year_2020, x="Año", y="Matrícula", title=f"{nombre_foco}: matrícula total por año (resto del mercado)",
                     color_discrete_sequence=["#8E44AD"],
                 )
                 fig.update_xaxes(type="category")
                 st.plotly_chart(fig, use_container_width=True)
 
-            uah_f = f_hist[f_hist["NOMBRE INSTITUCIÓN"] == UAH_NOMBRE]
-            if uah_f.empty:
-                st.error(f"📌 La UAH no tiene ningún programa de '{nombre_foco}' registrado hasta 2025.")
+            cobertura = FOCOS_UAH_COBERTURA[nombre_foco]
+            if cobertura.startswith("Parcial"):
+                st.warning(f"📌 Cobertura UAH: {cobertura}")
             else:
-                st.warning(f"📌 La UAH tiene {uah_f['CÓDIGO CARRERA'].nunique()} programa(s) relacionados.")
-                st.dataframe(uah_f[["Año", "NOMBRE CARRERA", "TOTAL MATRÍCULA"]], use_container_width=True, hide_index=True)
+                st.error(f"📌 Cobertura UAH: {cobertura}")
 
             st.markdown(f"**Instituciones que ofrecen {nombre_foco} — 2025**")
-            f_2025_detalle = f_hist[(f_hist["Año"] == 2025) & (f_hist["NOMBRE INSTITUCIÓN"] != UAH_NOMBRE)][
+            f_2025_detalle = f_hist[f_hist["Año"] == 2025][
                 ["NOMBRE INSTITUCIÓN", "NOMBRE CARRERA", "TOTAL MATRÍCULA"]
             ].sort_values("TOTAL MATRÍCULA", ascending=False)
             st.dataframe(f_2025_detalle, use_container_width=True, hide_index=True, height=300)
@@ -532,5 +557,4 @@ else:
                 f"foco_{nombre_foco.split(' ',1)[-1].lower().replace(' ','_').replace('/','_')}_2025.csv",
                 "text/csv", key=f"dl_{nombre_foco}",
             )
-
 
