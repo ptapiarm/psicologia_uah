@@ -354,15 +354,6 @@ UAH_PSICO_REAL_2025 = pd.DataFrame([
 ])
 UAH_MATRICULA_PSICO_2025_REAL = int(UAH_PSICO_REAL_2025["Matrícula 2025"].sum())
 
-st.info(
-    "ℹ️ El archivo SIES resultó tener datos incompletos/desactualizados para la "
-    "UAH en 2025 (varios programas reales no aparecían, y uno tenía cifra distinta "
-    "a la real). Por eso, **el catálogo y la matrícula de la UAH que se usan de "
-    "aquí en adelante son los datos reales que confirmaste**, no los del archivo "
-    "SIES. El resto del mercado (otras universidades) sigue viniendo de SIES, "
-    "que es la única fuente disponible para ellas."
-)
-
 psico_hist = df[df["NOMBRE CARRERA"].str.contains(patron_psico, case=False, na=False, regex=True)].copy()
 psico_hist = psico_hist[psico_hist["Año"] <= 2025]
 
