@@ -338,7 +338,7 @@ def normalizar_texto(texto):
 
 patron_psico = st.text_input(
     "Patrón de búsqueda en el nombre del programa (regex, separado por '|')",
-    value="PSICOLOG|PSICOANALISIS|PSICOTERAPIA|NEUROPSICOLOG",
+    value="PSICOLOG|PSICOANALISIS|PSICOTERAPIA|NEUROPSICOLOG|SALUD MENTAL",
     key="psico_patron_matricula",
 )
 
@@ -409,29 +409,40 @@ else:
     )
     min_inst_psico = st.slider("Mínimo de instituciones para considerar una temática validada", 2, 10, 3, key="psico_min_inst_mat")
 
-    d_2025 = psico_hist[psico_hist["Año"] == 2025].copy()
+    d_2025 = mercado_sin_uah[mercado_sin_uah["Año"] == 2025].copy()
     d_2025["nombre_norm"] = d_2025["NOMBRE CARRERA"].apply(normalizar_texto)
 
     stop_psico = [
         "de", "la", "el", "en", "y", "a", "los", "las", "del", "para", "con", "un", "una", "por", "su", "al", "o", "e", "que",
-        "diplomado", "postitulo", "curso", "programa", "nivel",
+        "diplomado", "diploma", "postitulo", "curso", "programa", "nivel",
         "psicologia", "psicologico", "psicologica", "psicologicos", "psicologicas",
         "psicoanalisis", "psicoterapia", "neuropsicologia", "neuropsicologica",
         "clinica", "fundamentos", "estrategias", "desde",
     ]
     tema_instituciones = {}
+    tema_programas = {}
+    tema_matricula = {}
     for _, row in d_2025.iterrows():
         palabras = [w for w in row["nombre_norm"].split() if w not in stop_psico and len(w) > 3]
         for w in set(palabras):
             tema_instituciones.setdefault(w, set()).add(row["NOMBRE INSTITUCIÓN"])
+            tema_programas.setdefault(w, set()).add(row["CÓDIGO CARRERA"])
+            tema_matricula[w] = tema_matricula.get(w, 0) + row["TOTAL MATRÍCULA"]
 
-    tema_df = pd.DataFrame(
-        [(k, len(v)) for k, v in tema_instituciones.items()],
-        columns=["Tema", "N° instituciones"],
-    ).sort_values("N° instituciones", ascending=False)
+    tema_df = pd.DataFrame([
+        {
+            "Tema": k,
+            "N° instituciones": len(tema_instituciones[k]),
+            "N° programas (ofertas)": len(tema_programas[k]),
+            "Matrícula 2025": int(tema_matricula[k]),
+        }
+        for k in tema_instituciones
+    ]).sort_values("N° instituciones", ascending=False)
 
     uah_texto_psico = " ".join(UAH_PSICO_REAL_2025["Programa"].apply(normalizar_texto))
-    tema_df["¿UAH lo cubre?"] = tema_df["Tema"].apply(lambda t: "Sí" if t in uah_texto_psico else "No")
+    uah_palabras_psico = set(uah_texto_psico.split())
+    tema_df["¿UAH lo cubre?"] = tema_df["Tema"].apply(lambda t: "Sí" if t in uah_palabras_psico else "No")
+    tema_df_completo = tema_df.copy()
     tema_df = tema_df[tema_df["N° instituciones"] >= min_inst_psico]
 
     fig = px.bar(
@@ -442,6 +453,34 @@ else:
     )
     st.plotly_chart(fig, use_container_width=True)
     st.dataframe(tema_df, use_container_width=True, hide_index=True, height=300)
+
+    st.markdown("---")
+    st.subheader("🔒 Temáticas ya muy cubiertas por el mercado")
+    st.caption(
+        "Temáticas más saturadas en 2025, sin filtrar por si la UAH la tiene o "
+        "no — es la vista de saturación del mercado completo."
+    )
+    colsat1, colsat2 = st.columns(2)
+    with colsat1:
+        metrica_sat = st.selectbox(
+            "Ordenar saturación por",
+            ["N° programas (ofertas)", "N° instituciones", "Matrícula 2025"],
+            index=0, key="psico_metrica_saturadas",
+        )
+    with colsat2:
+        n_saturadas = st.slider(
+            "N° de temáticas a mostrar", 5, 30, 10, key="psico_n_saturadas",
+        )
+    top_saturadas = tema_df_completo.sort_values(metrica_sat, ascending=False).head(n_saturadas)
+
+    fig = px.bar(
+        top_saturadas.sort_values(metrica_sat),
+        x=metrica_sat, y="Tema", orientation="h", color="¿UAH lo cubre?",
+        color_discrete_map={"Sí": "#27AE60", "No": "#C0392B"},
+        title=f"Top {n_saturadas} temáticas más saturadas del mercado de Psicología — 2025 (por {metrica_sat})",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(top_saturadas, use_container_width=True, hide_index=True)
 
     st.markdown("---")
     st.subheader("🚨 5 focos priorizados: los gaps más grandes detectados")
@@ -488,13 +527,18 @@ else:
             "Matrícula 2025": int(d_foco_2025["TOTAL MATRÍCULA"].sum()),
         })
     resumen_focos_df = pd.DataFrame(resumen_focos).sort_values("Matrícula 2025", ascending=False)
+    resumen_focos_df["Etiqueta"] = resumen_focos_df["Matrícula 2025"].apply(
+        lambda v: f"{v:,}".replace(",", ".")
+    )
 
     fig = px.bar(
         resumen_focos_df.sort_values("Matrícula 2025"),
         x="Matrícula 2025", y="Foco", orientation="h",
         color="Instituciones 2025", color_continuous_scale="Reds",
+        text="Etiqueta",
         title="Los 5 focos, ordenados por matrícula de mercado 2025 (resto del mercado, sin UAH)",
     )
+    fig.update_traces(textposition="inside", insidetextanchor="end", textfont=dict(color="black", size=13))
     fig.update_coloraxes(colorbar_tickformat=",d")
     st.plotly_chart(fig, use_container_width=True)
 
